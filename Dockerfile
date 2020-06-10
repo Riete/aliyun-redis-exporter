@@ -4,5 +4,5 @@ RUN unset GOPATH && go build -mod=vendor
 
 FROM riet/centos:7.4.1708-cnzone
 COPY --from=backend /go/aliyun-redis-exporter /opt/aliyun-redis-exporter
-EXPOSE 8000
+EXPOSE 10003
 CMD /opt/aliyun-redis-exporter
