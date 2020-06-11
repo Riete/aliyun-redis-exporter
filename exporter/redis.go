@@ -32,10 +32,11 @@ func (r *RedisExporter) GetInstance() {
 	if err != nil {
 		panic(err)
 	}
-
+	var instances []RedisInstance
 	for _, v := range response.Instances.KVStoreInstance {
-		r.instances = append(r.instances, RedisInstance{instanceId: v.InstanceId, instanceName: v.InstanceName, instanceType: v.ArchitectureType})
+		instances = append(instances, RedisInstance{instanceId: v.InstanceId, instanceName: v.InstanceName, instanceType: v.ArchitectureType})
 	}
+	r.instances = instances
 }
 
 func (r *RedisExporter) GetMetricMeta() {
@@ -112,6 +113,12 @@ func (r *RedisExporter) GetMetricMetaByInstance(i RedisInstance) []string {
 func (r *RedisExporter) InitGauge() {
 	r.NewClient()
 	r.GetInstance()
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			r.GetInstance()
+		}
+	}()
 	r.GetMetricMeta()
 	r.metrics = map[string]*prometheus.GaugeVec{}
 	for _, v := range r.instances {
