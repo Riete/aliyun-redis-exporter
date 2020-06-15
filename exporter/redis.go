@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -40,24 +41,31 @@ func (r *RedisExporter) GetInstance() {
 }
 
 func (r *RedisExporter) GetMetricMeta() {
-	request := cms.CreateDescribeMetricMetaListRequest()
-	request.Namespace = PROJECT
-	request.PageSize = requests.NewInteger(600)
-	response, err := r.client.DescribeMetricMetaList(request)
-	if err != nil {
-		panic(err)
+	var newMetric []string
+	if extraMetric != "" {
+		newMetric = append(metric, strings.Split(extraMetric, ",")...)
+	} else {
+		newMetric = metric
 	}
-	for _, v := range response.Resources.Resource {
-		if strings.HasPrefix(v.MetricName, "Shard") {
-			r.shardingMetricMetas = append(r.shardingMetricMetas, v.MetricName)
-		}
-		if strings.HasPrefix(v.MetricName, "Stand") {
-			r.standardMetricMetas = append(r.standardMetricMetas, v.MetricName)
-		}
-		if strings.HasPrefix(v.MetricName, "Split") {
-			r.splitMetricMetas = append(r.splitMetricMetas, v.MetricName)
+
+	it := make(map[string]string)
+	for _, v := range r.instances {
+		if v.instanceType == SHARDING {
+			it["Sharding"] = ""
+		} else if v.instanceType == STANDARD {
+			it["Standard"] = ""
+		} else {
+			it["Splitrw"] = ""
 		}
 	}
+
+	var m []string
+	for k := range it {
+		for _, v := range newMetric {
+			m = append(m, fmt.Sprintf("%s%s", k, v))
+		}
+	}
+	r.metricMetas = m
 }
 
 func (r *RedisExporter) GetMetric(metricName string) {
@@ -98,52 +106,32 @@ func (r *RedisExporter) GetInstanceNameTypeById(instanceId string) (string, stri
 	return "", ""
 }
 
-func (r *RedisExporter) GetMetricMetaByInstance(i RedisInstance) []string {
-	var metricMetas []string
-	if i.instanceType == SHARDING {
-		metricMetas = r.shardingMetricMetas
-	} else if i.instanceType == STANDARD {
-		metricMetas = r.standardMetricMetas
-	} else if i.instanceType == SPLITRW {
-		metricMetas = r.splitMetricMetas
-	}
-	return metricMetas
-}
-
 func (r *RedisExporter) InitGauge() {
 	r.NewClient()
 	r.GetInstance()
+	r.GetMetricMeta()
 	go func() {
 		for {
 			time.Sleep(5 * time.Minute)
 			r.GetInstance()
+			r.GetMetricMeta()
 		}
 	}()
-	r.GetMetricMeta()
 	r.metrics = map[string]*prometheus.GaugeVec{}
-	for _, v := range r.instances {
-		metricMetas := r.GetMetricMetaByInstance(v)
-		for _, m := range metricMetas {
-			name := ""
-			if strings.HasPrefix(m, "Standard") {
-				name = strings.TrimPrefix(m, "Standard")
-				r.metrics[v.instanceId+"_"+m] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-					Namespace: "aliyun_redis",
-					Name:      strings.ToLower(name),
-				}, []string{"instance_id", "instance_name", "instance_type"})
-			} else {
-				if strings.HasPrefix(m, "Sharding") {
-					name = strings.TrimPrefix(m, "Sharding")
-				} else {
-					name = strings.TrimPrefix(m, "Splitrw")
-				}
-				r.metrics[v.instanceId+"_"+m] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-					Namespace: "aliyun_redis",
-					Name:      strings.ToLower(name),
-				}, []string{"instance_id", "instance_name", "instance_type", "node_id"})
-			}
-
+	for _, m := range r.metricMetas {
+		name := ""
+		if strings.HasPrefix(m, "Standard") {
+			name = strings.TrimPrefix(m, "Standard")
+		} else if strings.HasPrefix(m, "Sharding") {
+			name = strings.TrimPrefix(m, "Sharding")
+		} else {
+			name = strings.TrimPrefix(m, "Splitrw")
 		}
+		r.metrics[m] = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "aliyun_redis",
+			Name:      strings.ToLower(name),
+		}, []string{"instance_id", "instance_name", "instance_type", "node_id"})
+
 	}
 }
 
@@ -154,32 +142,30 @@ func (r RedisExporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (r RedisExporter) Collect(ch chan<- prometheus.Metric) {
-	for _, v := range r.instances {
-		metricMetas := r.GetMetricMetaByInstance(v)
-		for _, m := range metricMetas {
-			r.GetMetric(m)
-			for _, d := range r.DataPoints {
-				instanceName, instanceType := r.GetInstanceNameTypeById(d.InstanceId)
-				if instanceType == STANDARD {
-					r.metrics[v.instanceId+"_"+m].With(
-						prometheus.Labels{
-							"instance_id":   d.InstanceId,
-							"instance_name": instanceName,
-							"instance_type": instanceType,
-						}).Set(d.Average)
-				} else {
-					r.metrics[v.instanceId+"_"+m].With(
-						prometheus.Labels{
-							"instance_id":   d.InstanceId,
-							"instance_name": instanceName,
-							"instance_type": instanceType,
-							"node_id":       d.NodeId,
-						}).Set(d.Average)
-				}
-
+	for _, m := range r.metricMetas {
+		r.GetMetric(m)
+		for _, d := range r.DataPoints {
+			instanceName, instanceType := r.GetInstanceNameTypeById(d.InstanceId)
+			if instanceType == STANDARD {
+				r.metrics[m].With(
+					prometheus.Labels{
+						"instance_id":   d.InstanceId,
+						"instance_name": instanceName,
+						"instance_type": instanceType,
+						"node_id":       d.InstanceId,
+					}).Set(d.Average)
+			} else {
+				r.metrics[m].With(
+					prometheus.Labels{
+						"instance_id":   d.InstanceId,
+						"instance_name": instanceName,
+						"instance_type": instanceType,
+						"node_id":       d.NodeId,
+					}).Set(d.Average)
 			}
-			time.Sleep(34 * time.Millisecond)
+
 		}
+		time.Sleep(34 * time.Millisecond)
 	}
 	for _, m := range r.metrics {
 		m.Collect(ch)

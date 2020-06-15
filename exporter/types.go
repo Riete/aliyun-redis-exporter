@@ -11,6 +11,28 @@ var (
 	accessKeyId     = os.Getenv("ACCESS_KEY_ID")
 	accessKeySecret = os.Getenv("ACCESS_KEY_SECRET")
 	regionId        = os.Getenv("REGION_ID")
+	extraMetric     = os.Getenv("EXTRA_METRIC")
+	metric          = []string{
+		"AvgRt",
+		"CpuUsage",
+		"ConnectionUsage",
+		"EvictedKeys",
+		"ExpiredKeys",
+		"HitRate",
+		"IntranetIn",
+		"IntranetOut",
+		"IntranetInRatio",
+		"IntranetOutRatio",
+		"Keys",
+		"MaxRt",
+		"MemoryUsage",
+		"QPSUsage",
+		"UsedConnection",
+		"UsedMemory",
+		"UsedQPS",
+		"hgetall",
+		"FailedCount",
+	}
 )
 
 const (
@@ -27,13 +49,11 @@ type RedisInstance struct {
 }
 
 type RedisExporter struct {
-	client              *cms.Client
-	metrics             map[string]*prometheus.GaugeVec
-	instances           []RedisInstance
-	shardingMetricMetas []string
-	splitMetricMetas    []string
-	standardMetricMetas []string
-	DataPoints          []struct {
+	client      *cms.Client
+	metrics     map[string]*prometheus.GaugeVec
+	instances   []RedisInstance
+	metricMetas []string
+	DataPoints  []struct {
 		InstanceId string  `json:"instanceId"`
 		Average    float64 `json:"Average"`
 		NodeId     string  `json:"nodeId,omitempty"`
