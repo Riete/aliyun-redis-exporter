@@ -25,7 +25,7 @@ docker run \
   -e ACCESS_KEY_ID=<aliyun ak> \
   -e ACCESS_KEY_SECRET=<aliyun ak sk> \
   -e REGION_ID=<region id> \
-  -e EXTRA_METRIC=metric1,metric2,metric3
+  -e EXTRA_METRIC=metric1,metric2,metric3 \
   -p 10003:10003 \
   riet/aliyun-redis-exporter 
 ```
