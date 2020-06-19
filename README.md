@@ -9,7 +9,7 @@ with default metrics
 ```
 docker run \ 
   -d \ 
-  --name aliyun-slb-exporter \
+  --name aliyun-redis-exporter \
   -e ACCESS_KEY_ID=<aliyun ak> \
   -e ACCESS_KEY_SECRET=<aliyun ak sk> \
   -e REGION_ID=<region id> \
@@ -21,7 +21,7 @@ with extra metrics
 ```
 docker run \ 
   -d \ 
-  --name aliyun-slb-exporter \
+  --name aliyun-redis-exporter \
   -e ACCESS_KEY_ID=<aliyun ak> \
   -e ACCESS_KEY_SECRET=<aliyun ak sk> \
   -e REGION_ID=<region id> \
