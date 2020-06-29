@@ -18,7 +18,7 @@ func main() {
 	redis := exporter.RedisExporter{}
 	redis.InitGauge()
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(redis)
+	registry.MustRegister(&redis)
 	handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 	http.Handle("/metrics", handler)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ListenPort), nil))

@@ -135,13 +135,13 @@ func (r *RedisExporter) InitGauge() {
 	}
 }
 
-func (r RedisExporter) Describe(ch chan<- *prometheus.Desc) {
+func (r *RedisExporter) Describe(ch chan<- *prometheus.Desc) {
 	for _, v := range r.metrics {
 		v.Describe(ch)
 	}
 }
 
-func (r RedisExporter) Collect(ch chan<- prometheus.Metric) {
+func (r *RedisExporter) Collect(ch chan<- prometheus.Metric) {
 	for _, m := range r.metricMetas {
 		r.GetMetric(m)
 		for _, d := range r.DataPoints {
