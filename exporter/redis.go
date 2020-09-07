@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
@@ -12,6 +13,16 @@ import (
 	r_kvstore "github.com/aliyun/alibaba-cloud-sdk-go/services/r-kvstore"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+var sleep = false
+
+func wakeup() {
+	lock := sync.RWMutex{}
+	lock.Lock()
+	time.Sleep(time.Minute * time.Duration(1))
+	sleep = false
+	lock.Unlock()
+}
 
 func (r *RedisExporter) NewClient() {
 	client, err := cms.NewClientWithAccessKey(regionId, accessKeyId, accessKeySecret)
@@ -142,30 +153,34 @@ func (r *RedisExporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (r *RedisExporter) Collect(ch chan<- prometheus.Metric) {
-	for _, m := range r.metricMetas {
-		r.GetMetric(m)
-		for _, d := range r.DataPoints {
-			instanceName, instanceType := r.GetInstanceNameTypeById(d.InstanceId)
-			if instanceType == STANDARD {
-				r.metrics[m].With(
-					prometheus.Labels{
-						"instance_id":   d.InstanceId,
-						"instance_name": instanceName,
-						"instance_type": instanceType,
-						"node_id":       d.InstanceId,
-					}).Set(d.Average)
-			} else {
-				r.metrics[m].With(
-					prometheus.Labels{
-						"instance_id":   d.InstanceId,
-						"instance_name": instanceName,
-						"instance_type": instanceType,
-						"node_id":       d.NodeId,
-					}).Set(d.Average)
-			}
+	if !sleep {
+		sleep = true
+		go wakeup()
+		for _, m := range r.metricMetas {
+			r.GetMetric(m)
+			for _, d := range r.DataPoints {
+				instanceName, instanceType := r.GetInstanceNameTypeById(d.InstanceId)
+				if instanceType == STANDARD {
+					r.metrics[m].With(
+						prometheus.Labels{
+							"instance_id":   d.InstanceId,
+							"instance_name": instanceName,
+							"instance_type": instanceType,
+							"node_id":       d.InstanceId,
+						}).Set(d.Average)
+				} else {
+					r.metrics[m].With(
+						prometheus.Labels{
+							"instance_id":   d.InstanceId,
+							"instance_name": instanceName,
+							"instance_type": instanceType,
+							"node_id":       d.NodeId,
+						}).Set(d.Average)
+				}
 
+			}
+			time.Sleep(34 * time.Millisecond)
 		}
-		time.Sleep(34 * time.Millisecond)
 	}
 	for _, m := range r.metrics {
 		m.Collect(ch)
